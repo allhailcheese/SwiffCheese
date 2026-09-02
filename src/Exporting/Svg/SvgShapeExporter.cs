@@ -116,11 +116,11 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
     public void BeginSolidFill(SwfColor color)
     {
         FinalizePath();
-        _path.SetAttributeValue("stroke", "none");
         _path.SetAttributeValue("fill", SvgUtils.ColorToHexString(color));
         _path.SetAttributeValue("fill-rule", SvgUtils.WindingRuleToString(_windingRule));
         if (color.Alpha != 255)
             _path.SetAttributeValue("fill-opacity", color.Alpha / 255.0f);
+        _path.SetAttributeValue("stroke", "none");
     }
 
     public void BeginLinearGradientFill(SwfMatrix gradientMatrix, SwfGradient gradient)
@@ -128,7 +128,7 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
         FinalizePath();
         XElement gradientElement = new(xmlns + "linearGradient");
         PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode);
-        AddGradientElement(gradientElement);
+        AddFillGradientElement(gradientElement);
     }
 
     public void BeginRadialGradientFill(SwfMatrix gradientMatrix, SwfGradient gradient)
@@ -136,7 +136,7 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
         FinalizePath();
         XElement gradientElement = new(xmlns + "radialGradient");
         PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode, 0);
-        AddGradientElement(gradientElement);
+        AddFillGradientElement(gradientElement);
     }
 
     public void BeginFocalGradientFill(SwfMatrix gradientMatrix, SwfFocalGradient gradient)
@@ -144,16 +144,16 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
         FinalizePath();
         XElement gradientElement = new(xmlns + "radialGradient");
         PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode, gradient.FocalPoint);
-        AddGradientElement(gradientElement);
+        AddFillGradientElement(gradientElement);
     }
 
     public void BeginBitmapFill(ushort bitmapId, SwfMatrix bitmapMatrix, bool smoothing, BitmapMode mode)
     {
         // TODO: implement
         FinalizePath();
-        _path.SetAttributeValue("stroke", "none");
         _path.SetAttributeValue("fill", "none");
         _path.SetAttributeValue("fill-rule", SvgUtils.WindingRuleToString(_windingRule));
+        _path.SetAttributeValue("stroke", "none");
     }
 
     public void EndFill()
@@ -193,13 +193,45 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
             _path.SetAttributeValue("stroke-miterlimit", miterLimit);
         }
 
-        // svg only supports scaling and no scaling (can't do only horizontal or vertical)
-        if (scaleMode == StrokeScaleMode.None)
+        _path.SetAttributeValue("vector-effect", scaleMode switch
         {
-            _path.SetAttributeValue("vector-effect", "non-scaling-stroke");
-        }
+            StrokeScaleMode.Normal => null, // Default ("none")
+            StrokeScaleMode.HorizontalOnly => null, // not supported by svg
+            StrokeScaleMode.VerticalOnly => null, // not supported by svg
+            StrokeScaleMode.None => "non-scaling-stroke",
+            _ => null,
+        });
 
         // svg does not support using caps instead of a join at the end of a closed stroke (noClose)
+    }
+
+    public void LineLinearGradientStyle(SwfMatrix gradientMatrix, SwfGradient gradient)
+    {
+        _path.Attribute("stroke-opacity")?.Remove();
+        XElement gradientElement = new(xmlns + "linearGradient");
+        PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode);
+        AddStrokeGradientElement(gradientElement);
+    }
+
+    public void LineRadialGradientStyle(SwfMatrix gradientMatrix, SwfGradient gradient)
+    {
+        _path.Attribute("stroke-opacity")?.Remove();
+        XElement gradientElement = new(xmlns + "radialGradient");
+        PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode, 0);
+        AddStrokeGradientElement(gradientElement);
+    }
+
+    public void LineFocalGradientStyle(SwfMatrix gradientMatrix, SwfFocalGradient gradient)
+    {
+        _path.Attribute("stroke-opacity")?.Remove();
+        XElement gradientElement = new(xmlns + "radialGradient");
+        PopulateGradientElement(gradientElement, gradient.GradientRecords, gradientMatrix, gradient.SpreadMode, gradient.InterpolationMode, gradient.FocalPoint);
+        AddStrokeGradientElement(gradientElement);
+    }
+
+    public void LineBitmapStyle(ushort bitmapId, SwfMatrix bitmapMatrix, bool smoothing, BitmapMode mode)
+    {
+        // TODO: implement
     }
 
     public void MoveTo(Vector2I pos)
@@ -290,14 +322,18 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
 
         gradient.SetAttributeValue("spreadMethod", spreadMode switch
         {
-            SpreadMode.Pad => "pad",
+            SpreadMode.Pad => null, // Default ("pad")
             SpreadMode.Reflect => "reflect",
             SpreadMode.Repeat => "repeat",
             _ => null,
         });
 
-        if (interpolationMode == InterpolationMode.Linear)
-            gradient.SetAttributeValue("color-interpolation", "linearRGB");
+        gradient.SetAttributeValue("color-interpolation", interpolationMode switch
+        {
+            InterpolationMode.Normal => null, // Default ("sRGB")
+            InterpolationMode.Linear => "linearRGB",
+            _ => null,
+        });
 
         // Ratio handling logic taken from jpexs BitmapExporter: https://github.com/jindrapetrik/jpexs-decompiler/blob/bf4b6e33b77b91e442eb91b8174a07e329ccca8d/libsrc/ffdec_lib/src/com/jpexs/decompiler/flash/exporters/shape/BitmapExporter.java#L260
         // Required for Hugin's glasses to colorswap correctly.
@@ -334,13 +370,22 @@ public class SvgShapeExporter(SvgSize size, SvgMatrix transform, SvgColorTransfo
         }
     }
 
-    private void AddGradientElement(XElement gradientElement)
+    private void AddFillGradientElement(XElement gradientElement)
     {
         string gradientId = $"gradient{_gradientCount++}";
         gradientElement.SetAttributeValue("id", gradientId);
-        _path.SetAttributeValue("stroke", "none");
         _path.SetAttributeValue("fill", $"url(#{gradientId})");
         _path.SetAttributeValue("fill-rule", SvgUtils.WindingRuleToString(_windingRule));
+        _path.SetAttributeValue("stroke", "none");
+        Defs.Add(gradientElement);
+    }
+
+    private void AddStrokeGradientElement(XElement gradientElement)
+    {
+        string gradientId = $"gradient{_gradientCount++}";
+        gradientElement.SetAttributeValue("id", gradientId);
+        _path.SetAttributeValue("fill", "none");
+        _path.SetAttributeValue("stroke", $"url(#{gradientId})");
         Defs.Add(gradientElement);
     }
 }

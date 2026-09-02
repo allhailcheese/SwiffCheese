@@ -12,7 +12,7 @@ public readonly struct LineStyle
     public bool PixelHinting { get; }
     public bool NoClose { get; }
     public CapStyle EndCapStyle { get; }
-    public double MilterLimitFactor { get; }
+    public double MilterLimitFactor { get; } = 3;
     public FillStyle? FillStyle { get; }
 
     public LineStyle(LineStyleRGB rgb)

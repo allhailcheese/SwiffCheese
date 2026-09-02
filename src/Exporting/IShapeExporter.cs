@@ -21,6 +21,10 @@ public interface IShapeExporter
     void BeginBitmapFill(ushort bitmapId, SwfMatrix bitmapMatrix, bool smoothing, BitmapMode mode);
     void EndFill();
     void LineStyle(float thickness, SwfColor color, bool pixelHinting, StrokeScaleMode scaleMode, CapStyle startCaps, CapStyle endCaps, JoinStyle joints, double miterLimit, bool noClose);
+    void LineLinearGradientStyle(SwfMatrix gradientMatrix, SwfGradient gradient);
+    void LineRadialGradientStyle(SwfMatrix gradientMatrix, SwfGradient gradient);
+    void LineFocalGradientStyle(SwfMatrix gradientMatrix, SwfFocalGradient gradient);
+    void LineBitmapStyle(ushort bitmapId, SwfMatrix bitmapMatrix, bool smoothing, BitmapMode mode);
     void MoveTo(Vector2I pos);
     void LineTo(Vector2I pos);
     void CurveTo(Vector2I anchor, Vector2I to);

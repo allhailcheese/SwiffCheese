@@ -130,6 +130,11 @@ public class SwfShape(DefineShapeXTag shape)
                 else
                 {
                     LineStyle lineStyle = shape.LineStyles[lineStyleIndex - 1];
+                    SwfColor color = lineStyle.Color;
+                    if (lineStyle.FillStyle is not null && lineStyle.FillStyle.Value.Type == FillStyleType.SolidColor)
+                    {
+                        color = lineStyle.FillStyle.Value.ToSolidFillStyle().Color;
+                    }
                     exporter.LineStyle(
                         lineStyle.Width,
                         lineStyle.Color,
@@ -142,7 +147,36 @@ public class SwfShape(DefineShapeXTag shape)
                         lineStyle.NoClose
                     );
 
-                    // TODO: fill style (LINESTYLE2)
+                    if (lineStyle.FillStyle is not null)
+                    {
+                        FillStyle fillStyle = lineStyle.FillStyle.Value;
+                        switch (fillStyle.Type)
+                        {
+                            case FillStyleType.SolidColor:
+                                break;
+                            case FillStyleType.LinearGradient:
+                                LinearGradientFillStyle linear = fillStyle.ToLinearGradientFillStyle();
+                                exporter.LineLinearGradientStyle(linear.GradientMatrix, linear.Gradient);
+                                break;
+                            case FillStyleType.RadialGradient:
+                                RadialGradientFillStyle radial = fillStyle.ToRadialGradientFillStyle();
+                                exporter.LineRadialGradientStyle(radial.GradientMatrix, radial.Gradient);
+                                break;
+                            case FillStyleType.FocalGradient:
+                                FocalGradientFillStyle focal = fillStyle.ToFocalGradientFillStyle();
+                                exporter.LineFocalGradientStyle(focal.GradientMatrix, focal.Gradient);
+                                break;
+                            case FillStyleType.RepeatingBitmap:
+                            case FillStyleType.ClippedBitmap:
+                            case FillStyleType.NonSmoothedRepeatingBitmap:
+                            case FillStyleType.NonSmoothedClippedBitmap:
+                                BitmapFillStyle bitmap = fillStyle.ToBitmapFillStyle();
+                                exporter.LineBitmapStyle(bitmap.BitmapID, bitmap.BitmapMatrix, bitmap.Smoothing, bitmap.Mode);
+                                break;
+                            default:
+                                throw new ArgumentException($"Invalid line fill style type {fillStyle.Type}");
+                        }
+                    }
                 }
             }
 
