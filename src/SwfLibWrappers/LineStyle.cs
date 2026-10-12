@@ -44,7 +44,7 @@ public readonly struct LineStyle
         NoClose = ex.NoClose;
         EndCapStyle = ex.EndCapStyle;
         MilterLimitFactor = ex.MilterLimitFactor;
-        FillStyle = ex.FillStyle;
+        FillStyle = ex.FillStyle ?? (FillStyle?)null;
     }
 
     public static LineStyle New(LineStyleRGB rgb) => new(rgb);
